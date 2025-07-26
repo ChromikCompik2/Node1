@@ -1,0 +1,129 @@
+-- Pulse MM2 ESP + GUI | Key: Z to toggle menu
+-- Author: @filecpp
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
+local GuiEnabled = false
+local espEnabled = true
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "PulseESP_GUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Enabled = true
+
+-- Toggle Menu
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.Z then
+        GuiEnabled = not GuiEnabled
+        ScreenGui.Main.Visible = GuiEnabled
+    end
+end)
+
+-- GUI Frame
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 200, 0, 150)
+Main.Position = UDim2.new(0, 20, 0.5, -75)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Main.BorderSizePixel = 0
+Main.Visible = false
+Main.Name = "Main"
+
+-- UI styling
+local UICorner = Instance.new("UICorner", Main)
+UICorner.CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Text = "Pulse ESP"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+
+-- Toggle Button
+local Toggle = Instance.new("TextButton", Main)
+Toggle.Position = UDim2.new(0.1, 0, 0, 40)
+Toggle.Size = UDim2.new(0.8, 0, 0, 30)
+Toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+Toggle.Text = "ESP: ON"
+Toggle.Font = Enum.Font.Gotham
+Toggle.TextSize = 16
+
+local UICorner2 = Instance.new("UICorner", Toggle)
+UICorner2.CornerRadius = UDim.new(0, 6)
+
+Toggle.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    Toggle.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+end)
+
+-- ESP Storage
+local ESP = {}
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+    local Billboard = Instance.new("BillboardGui")
+    Billboard.Name = "PulseESP"
+    Billboard.Size = UDim2.new(0, 200, 0, 50)
+    Billboard.Adornee = player.Character and player.Character:FindFirstChild("Head")
+    Billboard.AlwaysOnTop = true
+
+    local Text = Instance.new("TextLabel", Billboard)
+    Text.Size = UDim2.new(1, 0, 1, 0)
+    Text.BackgroundTransparency = 1
+    Text.Text = player.DisplayName or player.Name
+    Text.TextColor3 = Color3.fromRGB(255, 50, 50)
+    Text.TextStrokeTransparency = 0.5
+    Text.Font = Enum.Font.GothamSemibold
+    Text.TextSize = 14
+
+    Billboard.Parent = player.Character:FindFirstChild("Head")
+    ESP[player] = Billboard
+end
+
+local function removeESP(player)
+    if ESP[player] then
+        ESP[player]:Destroy()
+        ESP[player] = nil
+    end
+end
+
+local function updateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if player.Character and player.Character:FindFirstChild("Head") then
+                if not ESP[player] then
+                    createESP(player)
+                else
+                    ESP[player].Adornee = player.Character:FindFirstChild("Head")
+                end
+            else
+                removeESP(player)
+            end
+        end
+    end
+end
+
+-- Fast loop
+RunService.RenderStepped:Connect(function()
+    if espEnabled then
+        updateESP()
+    else
+        for player, billboard in pairs(ESP) do
+            if billboard then
+                billboard.Enabled = false
+            end
+        end
+    end
+end)
+
+-- Auto cleanup if someone leaves
+Players.PlayerRemoving:Connect(function(p)
+    removeESP(p)
+end)
+
+print("✅ Pulse MM2 ESP loaded. Press [Z] to open menu.")
