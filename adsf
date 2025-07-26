@@ -1,0 +1,192 @@
+-- Pulse Murder Mystery 2 Script v1.2 fixed menu
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Settings (по умолчанию выключены)
+local settings = {
+    espEnabled = false,
+    espNickEnabled = false,
+    espRoleEnabled = false,
+    autoFarmEnabled = false,
+    flyEnabled = false,
+    noclipEnabled = false,
+    speedHackEnabled = false,
+    spinBotEnabled = false,
+    spinSpeed = 10,
+    walkSpeed = 16,
+    tpToMurderer = false,
+    tpToSheriff = false,
+    aimbotEnabled = false,
+    aimbotFOV = 30,
+    aimbotSmooth = 5,
+    aimbotWallCheck = false,
+    airWalkEnabled = false,
+}
+
+-- GUI
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PulseMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Enabled = false
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 350, 0, 580)
+Frame.Position = UDim2.new(0.5, -175, 0.5, -290)
+Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.Parent = ScreenGui
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.FillDirection = Enum.FillDirection.Vertical
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = Frame
+
+-- Помогает правильно задать LayoutOrder (игнорируем TextLabel и Layout)
+local function getNextOrder()
+    local count = 0
+    for _, child in pairs(Frame:GetChildren()) do
+        if child:IsA("GuiButton") or child:IsA("Frame") then
+            count = count + 1
+        end
+    end
+    return count + 1
+end
+
+local function updateButtonVisual(btn, enabled)
+    btn.Text = btn.Name .. ": " .. (enabled and "ON" or "OFF")
+    btn.BackgroundColor3 = enabled and Color3.fromRGB(0,150,255) or Color3.fromRGB(45,45,45)
+end
+
+local function createToggle(name, settingKey)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(1, -20, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 18
+    btn.AutoButtonColor = false
+    btn.LayoutOrder = getNextOrder()
+    btn.Parent = Frame
+
+    -- Установка начального текста и цвета
+    updateButtonVisual(btn, settings[settingKey])
+
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    end)
+    btn.MouseLeave:Connect(function()
+        updateButtonVisual(btn, settings[settingKey])
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        settings[settingKey] = not settings[settingKey]
+        updateButtonVisual(btn, settings[settingKey])
+    end)
+
+    return btn
+end
+
+local function createSlider(name, settingKey, min, max)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = UDim2.new(1, -20, 0, 50)
+    sliderFrame.BackgroundTransparency = 1
+    sliderFrame.LayoutOrder = getNextOrder()
+    sliderFrame.Parent = Frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1,1,1)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.Text = name .. ": " .. tostring(settings[settingKey])
+    label.Parent = sliderFrame
+
+    local slider = Instance.new("TextButton")
+    slider.Position = UDim2.new(0, 0, 0, 25)
+    slider.Size = UDim2.new(1, 0, 0, 20)
+    slider.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    slider.AutoButtonColor = false
+    slider.Text = ""
+    slider.TextColor3 = Color3.new(1,1,1)
+    slider.ClipsDescendants = true
+    slider.Parent = sliderFrame
+
+    local sliderBar = Instance.new("Frame")
+    sliderBar.Size = UDim2.new((settings[settingKey] - min) / (max - min), 1, 1, 0)
+    sliderBar.BackgroundColor3 = Color3.fromRGB(0,150,255)
+    sliderBar.Parent = slider
+
+    local mouse = game.Players.LocalPlayer:GetMouse()
+    local dragging = false
+
+    slider.MouseButton1Down:Connect(function()
+        dragging = true
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local relativeX = math.clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+            local percent = relativeX / slider.AbsoluteSize.X
+            local value = math.floor(min + percent * (max - min))
+            if settings[settingKey] ~= value then
+                settings[settingKey] = value
+                label.Text = name .. ": " .. tostring(value)
+                sliderBar.Size = UDim2.new(percent, 0, 1, 0)
+            end
+        end
+    end)
+
+    return sliderFrame
+end
+
+-- Создаем элементы меню (после исправления)
+
+createToggle("ESP (Highlight)", "espEnabled")
+createToggle("ESP Никнеймы", "espNickEnabled")
+createToggle("ESP Роли", "espRoleEnabled")
+createToggle("Автофарм BeachBall", "autoFarmEnabled")
+createToggle("Флай", "flyEnabled")
+createToggle("Ноуклип", "noclipEnabled")
+createToggle("Спидхак", "speedHackEnabled")
+createSlider("Скорость спида", "walkSpeed", 16, 100)
+createToggle("Спинбот", "spinBotEnabled")
+createSlider("Скорость спинбота", "spinSpeed", 1, 50)
+createToggle("Телепорт к Murderer", "tpToMurderer")
+createToggle("Телепорт к Sheriff", "tpToSheriff")
+createToggle("Аирволк (AirWalk)", "airWalkEnabled")
+createToggle("Аимбот", "aimbotEnabled")
+createSlider("Аимбот FOV", "aimbotFOV", 10, 100)
+createSlider("Аимбот Плавность", "aimbotSmooth", 1, 20)
+createToggle("Аимбот WallCheck", "aimbotWallCheck")
+
+-- Toggle GUI на U
+
+local guiEnabled = false
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.U then
+        guiEnabled = not guiEnabled
+        ScreenGui.Enabled = guiEnabled
+    end
+end)
+
+-- Остальной твой код (аимбот, ESP, Fly и т.д.) можно подключать как было
+
+print("[PulseRage] Script loaded. Нажмите U для открытия меню.")
