@@ -1,13 +1,12 @@
--- Pulse Murder Mystery 2 Script v1.0 by @filecpp
+-- Pulse Murder Mystery 2 Script v1.1 by @filecpp
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TeleportService = game:GetService("TeleportService")
 
--- Settings
+-- Settings (все по умолчанию выключены)
 local settings = {
     espEnabled = false,
     espNickEnabled = false,
@@ -21,6 +20,11 @@ local settings = {
     walkSpeed = 16,
     tpToMurderer = false,
     tpToSheriff = false,
+    -- Аимбот
+    aimbotEnabled = false,
+    aimbotFOV = 30,
+    aimbotSmooth = 5,
+    aimbotWallCheck = false,
 }
 
 local Murderer, Sheriff, Hero
@@ -33,8 +37,8 @@ ScreenGui.Name = "PulseMenu"
 ScreenGui.Enabled = false
 
 local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0, 350, 0, 480)
-Frame.Position = UDim2.new(0.5, -175, 0.5, -240)
+Frame.Size = UDim2.new(0, 350, 0, 520)
+Frame.Position = UDim2.new(0.5, -175, 0.5, -260)
 Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 Frame.BorderSizePixel = 0
 Frame.Active = true
@@ -138,19 +142,30 @@ createToggle("Спинбот", "spinBotEnabled")
 createSlider("Скорость спинбота", "spinSpeed", 1, 50)
 createToggle("Телепорт к Murderer", "tpToMurderer")
 createToggle("Телепорт к Sheriff", "tpToSheriff")
+createToggle("Аимбот на Sheriff", "aimbotEnabled")
+createSlider("Аимбот FOV", "aimbotFOV", 10, 100)
+createSlider("Аимбот Плавность", "aimbotSmooth", 1, 20)
+createToggle("Аимбот WallCheck", "aimbotWallCheck")
 
 -- Toggle GUI на U
 
 local guiEnabled = false
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.U then
+    if input.KeyCode == Enum.KeyCode.X then
         guiEnabled = not guiEnabled
         ScreenGui.Enabled = guiEnabled
     end
 end)
 
--- ESP
+-- Вспомогательные функции
+
+local Camera = workspace.CurrentCamera
+
+local function WorldToScreenPoint(position)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
+    return Vector2.new(screenPos.X, screenPos.Y), onScreen, screenPos.Z
+end
 
 function IsAlive(player)
     for i,v in pairs(roles) do
@@ -250,7 +265,7 @@ function UpdateBillboardESP()
     end
 end
 
--- AutoFarm (from your code)
+-- AutoFarm
 
 local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
@@ -315,7 +330,9 @@ RunService.Stepped:Connect(function()
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0,1,0) end
 
         hrp.Velocity = Vector3.new(0,0,0)
-        hrp.CFrame = hrp.CFrame + moveDir.Unit * 50 * RunService.Stepped:Wait()
+        if moveDir.Magnitude > 0 then
+            hrp.CFrame = hrp.CFrame + moveDir.Unit * 50 * RunService.Stepped:Wait()
+        end
     end
 
     if settings.noclipEnabled and LocalPlayer.Character then
@@ -357,7 +374,60 @@ coroutine.wrap(function()
     end
 end)()
 
--- Update roles and ESP every render step
+-- Аимбот для Sheriff
+
+local function GetClosestSheriffTarget()
+    local localChar = LocalPlayer.Character
+    if not localChar or not localChar:FindFirstChild("Head") then return nil end
+    local localPos = Camera.CFrame.Position
+    local mousePos = UserInputService:GetMouseLocation()
+
+    local closestTarget = nil
+    local closestDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Name == Sheriff and player.Character and player.Character:FindFirstChild("Head") and player ~= LocalPlayer then
+            if IsAlive(player) then
+                local headPos = player.Character.Head.Position
+                local screenPos, onScreen = WorldToScreenPoint(headPos)
+                if onScreen then
+                    local distToMouse = (screenPos - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+                    if distToMouse <= settings.aimbotFOV then
+                        if settings.aimbotWallCheck then
+                            local rayParams = RaycastParams.new()
+                            rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+                            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+                            local raycastResult = workspace:Raycast(localPos, (headPos - localPos), rayParams)
+                            if raycastResult and raycastResult.Instance and raycastResult.Instance:IsDescendantOf(player.Character) then
+                                if distToMouse < closestDistance then
+                                    closestDistance = distToMouse
+                                    closestTarget = player
+                                end
+                            end
+                        else
+                            if distToMouse < closestDistance then
+                                closestDistance = distToMouse
+                                closestTarget = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+local function SmoothAim(targetPos, smoothness)
+    local camera = workspace.CurrentCamera
+    local currentCFrame = camera.CFrame
+    local direction = (targetPos - camera.CFrame.Position).Unit
+    local targetCFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + direction)
+    local newCFrame = currentCFrame:Lerp(targetCFrame, 1 / smoothness)
+    camera.CFrame = newCFrame
+end
+
+-- Обновление ролей и ESP
 
 RunService.RenderStepped:Connect(function()
     UpdateRoles()
@@ -369,7 +439,7 @@ RunService.RenderStepped:Connect(function()
         UpdateHighlightColors()
         UpdateBillboardESP()
     else
-        -- Remove highlights and ESP
+        -- Удаляем хайлайты и ESP, если выключено
         for _, player in pairs(Players:GetPlayers()) do
             if player.Character then
                 local highlight = player.Character:FindFirstChild("Highlight")
@@ -379,6 +449,15 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
+
+    -- Аимбот на Sheriff
+    if settings.aimbotEnabled and Sheriff then
+        local target = GetClosestSheriffTarget()
+        if target and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local headPos = target.Character.Head.Position
+            SmoothAim(headPos, settings.aimbotSmooth)
+        end
+    end
 end)
 
-print("[PulseRage] Script loaded. Press U to toggle menu.")
+print("[PulseRage] Script loaded. Нажмите U для открытия меню.")
