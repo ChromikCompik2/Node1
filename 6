@@ -1,0 +1,530 @@
+--[[
+    Pulse MM2 Ultimate Rage Script + GUI v1.0
+    Author: @filecpp (readsafe)
+    Features:
+    - ESP с подсветкой ролей и никами
+    - Aimbot (на любого и мардера)
+    - Infinity Jump и High Jump
+    - SpeedHack с регулировкой
+    - Fly с управлением
+    - Noclip
+    - SpinBot с регулировкой скорости
+    - Телепорт к Murderer/Sheriff
+    - Автофарм BeachBall
+    - Кастомное GUI на клавишу U
+]]
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+-- SETTINGS TABLE
+local settings = {
+    espEnabled = false,
+    espShowNames = true,
+    espShowRoles = true,
+    autoFarm = false,
+    flyEnabled = false,
+    noclipEnabled = false,
+    speedHack = false,
+    speedValue = 30,
+    spinBot = false,
+    spinSpeed = 10,
+    tpToMurderer = false,
+    tpToSheriff = false,
+    infinityJump = false,
+    highJump = false,
+    aimbotEnabled = false,
+    aimbotFOV = 50,
+    aimbotSmooth = 5,
+    aimbotWallCheck = false,
+}
+
+local roles = {}
+local murderer, sheriff, hero
+
+-- GUI Creation --
+local playerGui = LP:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PulseMM2_GUI"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+screenGui.Enabled = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 400, 0, 520)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -260)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true  -- теперь видим, управление через screenGui.Enabled
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Text = "Pulse MM2 Ultimate Rage"
+title.TextColor3 = Color3.fromRGB(255, 150, 0)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 24
+title.TextScaled = false
+title.TextWrapped = true
+
+local UIList = Instance.new("UIListLayout", mainFrame)
+UIList.Padding = UDim.new(0, 6)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function createToggle(text, settingKey)
+    local btn = Instance.new("TextButton", mainFrame)
+    btn.Size = UDim2.new(1, -20, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 18
+    btn.Text = text .. ": OFF"
+    btn.AutoButtonColor = false
+
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = settings[settingKey] and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(45, 45, 45)
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        settings[settingKey] = not settings[settingKey]
+        btn.Text = text .. ": " .. (settings[settingKey] and "ON" or "OFF")
+        btn.BackgroundColor3 = settings[settingKey] and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(45, 45, 45)
+    end)
+
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    return btn
+end
+
+local function createSlider(text, settingKey, min, max)
+    local frame = Instance.new("Frame", mainFrame)
+    frame.Size = UDim2.new(1, -20, 0, 50)
+    frame.BackgroundTransparency = 1
+
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.Text = text .. ": " .. tostring(settings[settingKey])
+
+    local slider = Instance.new("TextButton", frame)
+    slider.Position = UDim2.new(0, 0, 0, 25)
+    slider.Size = UDim2.new(1, 0, 0, 20)
+    slider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    slider.AutoButtonColor = false
+    slider.Text = ""
+    slider.ClipsDescendants = true
+
+    local bar = Instance.new("Frame", slider)
+    bar.Size = UDim2.new((settings[settingKey] - min) / (max - min), 1, 1, 0)
+    bar.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+
+    slider.MouseButton1Down:Connect(function()
+        local mouse = game.Players.LocalPlayer:GetMouse()
+        local conn
+        conn = mouse.Move:Connect(function()
+            local relativeX = math.clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+            local percent = relativeX / slider.AbsoluteSize.X
+            local val = math.floor(min + percent * (max - min))
+            settings[settingKey] = val
+            label.Text = text .. ": " .. val
+            bar.Size = UDim2.new(percent, 0, 1, 0)
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                conn:Disconnect()
+            end
+        end)
+    end)
+
+    return frame
+end
+
+-- Create toggles
+local espToggle = createToggle("ESP", "espEnabled")
+local espNamesToggle = createToggle("Показывать имена", "espShowNames")
+local espRolesToggle = createToggle("Показывать роли", "espShowRoles")
+local autoFarmToggle = createToggle("Автофарм BeachBall", "autoFarm")
+local flyToggle = createToggle("Fly", "flyEnabled")
+local noclipToggle = createToggle("Noclip", "noclipEnabled")
+local speedToggle = createToggle("SpeedHack", "speedHack")
+local speedSlider = createSlider("Скорость", "speedValue", 16, 100)
+local spinToggle = createToggle("SpinBot", "spinBot")
+local spinSpeedSlider = createSlider("SpinBot Speed", "spinSpeed", 1, 50)
+local tpMurdererToggle = createToggle("TP к Murderer", "tpToMurderer")
+local tpSheriffToggle = createToggle("TP к Sheriff", "tpToSheriff")
+local infinityJumpToggle = createToggle("Infinity Jump", "infinityJump")
+local highJumpToggle = createToggle("High Jump", "highJump")
+local aimbotToggle = createToggle("Aimbot", "aimbotEnabled")
+local aimbotFOVSlider = createSlider("Aimbot FOV", "aimbotFOV", 10, 100)
+local aimbotSmoothSlider = createSlider("Aimbot Smooth", "aimbotSmooth", 1, 20)
+
+-- Variables for role detection
+local function IsAlive(plr)
+    local data = roles[plr.Name]
+    return data and not data.Killed and not data.Dead
+end
+
+local function UpdateRoles()
+    local success, data = pcall(function()
+        return ReplicatedStorage:FindFirstChild("GetPlayerData", true):InvokeServer()
+    end)
+    if success and data then
+        roles = data
+        for name, info in pairs(data) do
+            if info.Role == "Murderer" then
+                murderer = name
+            elseif info.Role == "Sheriff" then
+                sheriff = name
+            elseif info.Role == "Hero" then
+                hero = name
+            end
+        end
+    end
+end
+
+-- ESP Logic
+
+local espTags = {}
+
+local function CreateESPTag(player)
+    if player.Character and player.Character:FindFirstChild("Head") and not espTags[player] then
+        local head = player.Character.Head
+        local billboard = Instance.new("BillboardGui", head)
+        billboard.Name = "PulseESPBillboard"
+        billboard.Size = UDim2.new(0, 150, 0, 40)
+        billboard.Adornee = head
+        billboard.AlwaysOnTop = true
+        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+
+        local textLabel = Instance.new("TextLabel", billboard)
+        textLabel.Name = "ESPText"
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextColor3 = Color3.new(1,1,1)
+        textLabel.TextStrokeTransparency = 0.5
+
+        espTags[player] = billboard
+    end
+end
+
+local function RemoveESPTag(player)
+    if espTags[player] then
+        espTags[player]:Destroy()
+        espTags[player] = nil
+    end
+end
+
+local function UpdateESP()
+    UpdateRoles()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LP and player.Character and player.Character:FindFirstChild("Head") then
+            if settings.espEnabled then
+                CreateESPTag(player)
+                local text = ""
+                if settings.espShowNames then
+                    text = player.Name
+                end
+                if settings.espShowRoles and roles[player.Name] then
+                    text = text .. " [" .. roles[player.Name].Role .. "]"
+                end
+                espTags[player].ESPText.Text = text
+
+                -- Highlight by roles
+                local highlight = player.Character:FindFirstChild("PulseHighlight")
+                if not highlight then
+                    highlight = Instance.new("Highlight")
+                    highlight.Name = "PulseHighlight"
+                    highlight.Adornee = player.Character
+                    highlight.Parent = player.Character
+                end
+
+                if player.Name == murderer and IsAlive(player) then
+                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                    highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+                elseif player.Name == sheriff and IsAlive(player) then
+                    highlight.FillColor = Color3.fromRGB(0, 0, 255)
+                    highlight.OutlineColor = Color3.fromRGB(0, 0, 255)
+                elseif player.Name == hero and IsAlive(player) and (not IsAlive(Players:FindFirstChild(sheriff))) then
+                    highlight.FillColor = Color3.fromRGB(255, 255, 0)
+                    highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
+                else
+                    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                    highlight.OutlineColor = Color3.fromRGB(0, 255, 0)
+                end
+            else
+                RemoveESPTag(player)
+                local highlight = player.Character and player.Character:FindFirstChild("PulseHighlight")
+                if highlight then highlight:Destroy() end
+            end
+        else
+            RemoveESPTag(player)
+        end
+    end
+end
+
+-- Aimbot Logic
+
+local Camera = Workspace.CurrentCamera
+
+local function WorldToScreen(pos)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(screenPos.X, screenPos.Y), onScreen, screenPos.Z
+end
+
+local function GetClosestTarget()
+    local mousePos = UserInputService:GetMouseLocation()
+    local closestTarget = nil
+    local closestDist = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LP and player.Character and player.Character:FindFirstChild("Head") and IsAlive(player) then
+            local headPos = player.Character.Head.Position
+            local screenPos, onScreen = WorldToScreen(headPos)
+            if onScreen then
+                local distToMouse = (screenPos - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+                if distToMouse < settings.aimbotFOV then
+                    if settings.aimbotWallCheck then
+                        local rayParams = RaycastParams.new()
+                        rayParams.FilterDescendantsInstances = {LP.Character}
+                        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        local ray = Workspace:Raycast(Camera.CFrame.Position, (headPos - Camera.CFrame.Position), rayParams)
+                        if ray and ray.Instance and ray.Instance:IsDescendantOf(player.Character) then
+                            if distToMouse < closestDist then
+                                closestDist = distToMouse
+                                closestTarget = player
+                            end
+                        end
+                    else
+                        if distToMouse < closestDist then
+                            closestDist = distToMouse
+                            closestTarget = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return closestTarget
+end
+
+local function SmoothAim(targetPos, smooth)
+    local camera = Camera
+    local currentCFrame = camera.CFrame
+    local direction = (targetPos - camera.CFrame.Position).Unit
+    local targetCFrame = CFrame.new(camera.CFrame.Position, camera.CFrame.Position + direction)
+    local newCFrame = currentCFrame:Lerp(targetCFrame, smooth / 100)
+    camera.CFrame = newCFrame
+end
+
+-- Hook aimbot to mouse hold
+local aimbotActive = false
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.U then
+        screenGui.Enabled = not screenGui.Enabled
+        mainFrame.Visible = screenGui.Enabled
+    elseif settings.aimbotEnabled and input.UserInputType == Enum.UserInputType.MouseButton2 then
+        aimbotActive = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gpe)
+    if gpe then return end
+    if settings.aimbotEnabled and input.UserInputType == Enum.UserInputType.MouseButton2 then
+        aimbotActive = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    UpdateESP()
+
+    if aimbotActive and settings.aimbotEnabled then
+        local target = GetClosestTarget()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            SmoothAim(target.Character.Head.Position, settings.aimbotSmooth)
+        end
+    end
+end)
+
+-- Infinity Jump & High Jump
+
+local jumpPowerOriginal = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") and LP.Character:FindFirstChildOfClass("Humanoid").JumpPower or 50
+
+UserInputService.JumpRequest:Connect(function()
+    if settings.infinityJump then
+        local humanoid = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if settings.highJump then
+        local humanoid = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.JumpPower = 100
+        end
+    else
+        if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+            LP.Character:FindFirstChildOfClass("Humanoid").JumpPower = jumpPowerOriginal
+        end
+    end
+end)
+
+-- SpeedHack
+
+RunService.RenderStepped:Connect(function()
+    if settings.speedHack then
+        local humanoid = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = settings.speedValue
+        end
+    else
+        if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+            LP.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
+        end
+    end
+end)
+
+-- Fly
+
+local flying = false
+local flySpeed = 50
+local flyBodyVelocity = nil
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.F then
+        settings.flyEnabled = not settings.flyEnabled
+        if settings.flyEnabled then
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                flying = true
+                flyBodyVelocity = Instance.new("BodyVelocity", LP.Character.HumanoidRootPart)
+                flyBodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
+        else
+            flying = false
+            if flyBodyVelocity then
+                flyBodyVelocity:Destroy()
+                flyBodyVelocity = nil
+            end
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if flying and flyBodyVelocity and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        local moveDir = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Workspace.CurrentCamera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Workspace.CurrentCamera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Workspace.CurrentCamera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Workspace.CurrentCamera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0,1,0) end
+        flyBodyVelocity.Velocity = moveDir.Unit * flySpeed
+        if moveDir.Magnitude == 0 then
+            flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end
+end)
+
+-- Noclip
+
+RunService.Stepped:Connect(function()
+    if settings.noclipEnabled and LP.Character then
+        for _, part in pairs(LP.Character:GetChildren()) do
+            if part:IsA("BasePart") and part.CanCollide == true and part.Name ~= "HumanoidRootPart" then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- SpinBot
+
+local spinAngle = 0
+
+RunService.RenderStepped:Connect(function(dt)
+    if settings.spinBot and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        spinAngle = (spinAngle + settings.spinSpeed) % 360
+        LP.Character.HumanoidRootPart.CFrame = LP.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(settings.spinSpeed), 0)
+    end
+end)
+
+-- TP to Murderer / Sheriff
+
+local function TeleportToPlayer(playerName)
+    local player = Players:FindFirstChild(playerName)
+    if player and player.Character and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        LP.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0)
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if settings.tpToMurderer and murderer then
+        TeleportToPlayer(murderer)
+    end
+    if settings.tpToSheriff and sheriff then
+        TeleportToPlayer(sheriff)
+    end
+end)
+
+-- Auto Farm BeachBall
+
+local function FarmBeachBall()
+    for _, item in pairs(Workspace:GetChildren()) do
+        if item.Name == "BeachBall" and item:IsA("BasePart") and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.CFrame = item.CFrame + Vector3.new(0,3,0)
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if settings.autoFarm then
+        FarmBeachBall()
+    end
+end)
+
+-- Prevent functions disabling on death
+
+Players.PlayerRemoving:Connect(function(plr)
+    espTags[plr] = nil
+end)
+
+-- Reapply default WalkSpeed and JumpPower on character respawn
+
+LP.CharacterAdded:Connect(function(char)
+    local humanoid = char:WaitForChild("Humanoid")
+    humanoid.WalkSpeed = 16
+    humanoid.JumpPower = 50
+    wait(1)
+    if settings.speedHack then
+        humanoid.WalkSpeed = settings.speedValue
+    end
+    if settings.highJump then
+        humanoid.JumpPower = 100
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.U then
+        screenGui.Enabled = not screenGui.Enabled
+    end
+end)
