@@ -1,0 +1,98 @@
+--[[ 
+    Credits to Kiriot22 for role detection 
+    Remade by readsafe for Pulse ESP 
+--]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local LP = Players.LocalPlayer
+local roles = {}
+local murder, sheriff, hero
+
+-- Проверка, жив ли игрок
+local function IsAlive(plr)
+	local data = roles[plr.Name]
+	return data and not data.Killed and not data.Dead
+end
+
+-- Создание ника над головой
+local function CreateNameTag(player)
+	if player.Character and not player.Character:FindFirstChild("Pulse_NameTag") then
+		local head = player.Character:FindFirstChild("Head")
+		if not head then return end
+
+		local tag = Instance.new("BillboardGui")
+		tag.Name = "Pulse_NameTag"
+		tag.Adornee = head
+		tag.Size = UDim2.new(0, 100, 0, 40)
+		tag.StudsOffset = Vector3.new(0, 2.5, 0)
+		tag.AlwaysOnTop = true
+
+		local text = Instance.new("TextLabel", tag)
+		text.Size = UDim2.new(1, 0, 1, 0)
+		text.BackgroundTransparency = 1
+		text.Text = player.DisplayName or player.Name
+		text.Font = Enum.Font.SourceSansBold
+		text.TextScaled = true
+		text.TextColor3 = Color3.new(1, 1, 1)
+		text.Name = "NameLabel"
+
+		tag.Parent = head
+	end
+end
+
+-- Обновление ESP
+local function UpdateESP()
+	local succ, data = pcall(function()
+		return ReplicatedStorage:FindFirstChild("GetPlayerData", true):InvokeServer()
+	end)
+	if not succ or not data then return end
+
+	roles = data
+
+	for name, info in pairs(data) do
+		if info.Role == "Murderer" then
+			murder = name
+		elseif info.Role == "Sheriff" then
+			sheriff = name
+		elseif info.Role == "Hero" then
+			hero = name
+		end
+	end
+
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LP and player.Character then
+			local char = player.Character
+
+			-- Highlight
+			local highlight = char:FindFirstChildOfClass("Highlight")
+			if not highlight then
+				highlight = Instance.new("Highlight")
+				highlight.Name = "Pulse_Highlight"
+				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+				highlight.FillTransparency = 0.75
+				highlight.OutlineTransparency = 1
+				highlight.Parent = char
+			end
+
+			-- Установка цвета
+			if player.Name == murder and IsAlive(player) then
+				highlight.FillColor = Color3.fromRGB(255, 0, 0)
+			elseif player.Name == sheriff and IsAlive(player) then
+				highlight.FillColor = Color3.fromRGB(0, 0, 255)
+			elseif player.Name == hero and IsAlive(player) and (not IsAlive(Players:FindFirstChild(sheriff))) then
+				highlight.FillColor = Color3.fromRGB(255, 255, 0)
+			else
+				highlight.FillColor = Color3.fromRGB(0, 255, 0)
+			end
+
+			-- Ник
+			CreateNameTag(player)
+		end
+	end
+end
+
+-- Обновлять каждый кадр
+RunService.RenderStepped:Connect(UpdateESP)
