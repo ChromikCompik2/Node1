@@ -1,12 +1,17 @@
 -- Pulse MM2 ESP + Highlight + GUI | Key: Z to toggle menu
 -- Author: @filecpp (adapted by ChatGPT)
-
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PulseESP_GUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Enabled = true
+
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-
-local LocalPlayer = Players.LocalPlayer
 
 local GuiEnabled = false
 local espEnabled = true
@@ -19,12 +24,6 @@ local hero = nil
 
 -- ESP Storage
 local ESP = {}
-
--- Создаём GUI
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "PulseESP_GUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Enabled = true
 
 -- Toggle Menu
 UserInputService.InputBegan:Connect(function(input, gpe)
