@@ -1,0 +1,153 @@
+-- PulseHack MM2 by @filecpp
+
+-- ⛔ Удаление старого GUI
+pcall(function() game.CoreGui.PulseESP_GUI:Destroy() end)
+
+-- 🧠 Переменные
+local uis = game:GetService("UserInputService")
+local plrs = game:GetService("Players")
+local rs = game:GetService("RunService")
+local lplr = plrs.LocalPlayer
+local mouse = lplr:GetMouse()
+
+-- 🔲 GUI
+local gui = Instance.new("ScreenGui", gethui and gethui() or game.CoreGui)
+gui.Name = "PulseESP_GUI"
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 300, 0, 400)
+frame.Position = UDim2.new(0.5, -150, 0.5, -200)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+frame.BorderSizePixel = 0
+frame.Visible = false
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Text = "PulseHack | MM2"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+
+-- 🧩 Флаги
+local espEnabled = false
+local aimbotEnabled = false
+
+-- ✅ Toggle GUI
+uis.InputBegan:Connect(function(i, g)
+	if not g and i.KeyCode == Enum.KeyCode.Z then
+		frame.Visible = not frame.Visible
+	end
+end)
+
+-- 🔍 ESP
+local function updateESP()
+	for _, plr in pairs(plrs:GetPlayers()) do
+		if plr ~= lplr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			local tag = plr.Character:FindFirstChild("PulseESP_Tag") or Instance.new("BillboardGui", plr.Character.HumanoidRootPart)
+			tag.Name = "PulseESP_Tag"
+			tag.Size = UDim2.new(0, 100, 0, 20)
+			tag.StudsOffset = Vector3.new(0, 3, 0)
+			tag.AlwaysOnTop = true
+
+			local txt = tag:FindFirstChild("TextLabel") or Instance.new("TextLabel", tag)
+			txt.Size = UDim2.new(1, 0, 1, 0)
+			txt.Text = plr.Name
+			txt.BackgroundTransparency = 1
+			txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+			txt.TextStrokeTransparency = 0
+			txt.TextSize = 14
+			txt.Font = Enum.Font.SourceSansBold
+		end
+	end
+end
+
+-- 🔫 Aimbot на Murderer
+local function getMurderer()
+	for _, plr in pairs(plrs:GetPlayers()) do
+		if plr ~= lplr and plr.Character and plr.Backpack:FindFirstChild("Knife") or (plr.Character:FindFirstChild("Knife")) then
+			return plr
+		end
+	end
+end
+
+-- 🔁 Быстрые функции
+rs.RenderStepped:Connect(function()
+	if espEnabled then updateESP() end
+
+	if aimbotEnabled then
+		local m = getMurderer()
+		if m and m.Character and m.Character:FindFirstChild("Head") then
+			mouse.TargetFilter = m.Character
+			mouse.Hit = CFrame.new(m.Character.Head.Position)
+		end
+	end
+end)
+
+-- 🎮 Кнопки
+local function createBtn(txt, y, callback)
+	local b = Instance.new("TextButton", frame)
+	b.Size = UDim2.new(1, -20, 0, 30)
+	b.Position = UDim2.new(0, 10, 0, y)
+	b.Text = txt
+	b.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.Font = Enum.Font.Gotham
+	b.TextSize = 14
+	b.MouseButton1Click:Connect(callback)
+end
+
+-- 🧰 Кнопки GUI
+createBtn("ESP: TOGGLE", 50, function()
+	espEnabled = not espEnabled
+end)
+
+createBtn("AIMBOT (Any): TOGGLE", 90, function()
+	aimbotEnabled = not aimbotEnabled
+end)
+
+createBtn("SpeedHack", 130, function()
+	lplr.Character.Humanoid.WalkSpeed = 50
+end)
+
+createBtn("Noclip", 170, function()
+	game:GetService("RunService").Stepped:Connect(function()
+		if lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
+			for _, v in pairs(lplr.Character:GetDescendants()) do
+				if v:IsA("BasePart") then
+					v.CanCollide = false
+				end
+			end
+		end
+	end)
+end)
+
+createBtn("Fly", 210, function()
+	local bp = Instance.new("BodyPosition", lplr.Character.HumanoidRootPart)
+	bp.Position = lplr.Character.HumanoidRootPart.Position
+	bp.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	rs.RenderStepped:Connect(function()
+		bp.Position = lplr.Character.HumanoidRootPart.Position + Vector3.new(0, 5, 0)
+	end)
+end)
+
+createBtn("Inf Jump", 250, function()
+	uis.JumpRequest:Connect(function()
+		lplr.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+	end)
+end)
+
+createBtn("AutoFarm Coins", 290, function()
+	while wait() do
+		for _, coin in pairs(workspace:GetDescendants()) do
+			if coin:IsA("Part") and coin.Name == "CoinContainer" then
+				lplr.Character:MoveTo(coin.Position)
+				wait(0.3)
+			end
+		end
+	end
+end)
+
+-- 🎉 Готово
+print("✅ PulseHack GUI Loaded")
