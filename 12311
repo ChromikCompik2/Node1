@@ -1,20 +1,33 @@
--- Pulse MM2 ESP + GUI | Key: Z to toggle menu
--- Author: @filecpp
+-- Pulse MM2 ESP + Highlight + GUI | Key: Z to toggle menu
+-- Author: @filecpp (adapted by ChatGPT)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
 local LocalPlayer = Players.LocalPlayer
-local UIS = game:GetService("UserInputService")
+
 local GuiEnabled = false
 local espEnabled = true
 
+-- Роли игроков
+local roles = {}
+local murder = nil
+local sheriff = nil
+local hero = nil
+
+-- ESP Storage
+local ESP = {}
+
+-- Создаём GUI
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "PulseESP_GUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Enabled = true
 
 -- Toggle Menu
-UIS.InputBegan:Connect(function(input, gpe)
+UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.Z then
         GuiEnabled = not GuiEnabled
@@ -22,7 +35,6 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- GUI Frame
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0, 200, 0, 150)
 Main.Position = UDim2.new(0, 20, 0.5, -75)
@@ -31,7 +43,6 @@ Main.BorderSizePixel = 0
 Main.Visible = false
 Main.Name = "Main"
 
--- UI styling
 local UICorner = Instance.new("UICorner", Main)
 UICorner.CornerRadius = UDim.new(0, 8)
 
@@ -43,7 +54,6 @@ Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
 
--- Toggle Button
 local Toggle = Instance.new("TextButton", Main)
 Toggle.Position = UDim2.new(0.1, 0, 0, 40)
 Toggle.Size = UDim2.new(0.8, 0, 0, 30)
@@ -59,71 +69,161 @@ UICorner2.CornerRadius = UDim.new(0, 6)
 Toggle.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     Toggle.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+    -- Включаем или отключаем все билборды и хайлайты
+    for player, billboard in pairs(ESP) do
+        if billboard then
+            billboard.Enabled = espEnabled
+        end
+        if player.Character then
+            local hl = player.Character:FindFirstChild("Pulse_Highlight")
+            if hl then
+                hl.Enabled = espEnabled
+            end
+        end
+    end
 end)
 
--- ESP Storage
-local ESP = {}
-
-local function createESP(player)
-    if player == LocalPlayer then return end
-    local Billboard = Instance.new("BillboardGui")
-    Billboard.Name = "PulseESP"
-    Billboard.Size = UDim2.new(0, 200, 0, 50)
-    Billboard.Adornee = player.Character and player.Character:FindFirstChild("Head")
-    Billboard.AlwaysOnTop = true
-
-    local Text = Instance.new("TextLabel", Billboard)
-    Text.Size = UDim2.new(1, 0, 1, 0)
-    Text.BackgroundTransparency = 1
-    Text.Text = player.DisplayName or player.Name
-    Text.TextColor3 = Color3.fromRGB(255, 50, 50)
-    Text.TextStrokeTransparency = 0.5
-    Text.Font = Enum.Font.GothamSemibold
-    Text.TextSize = 14
-
-    Billboard.Parent = player.Character:FindFirstChild("Head")
-    ESP[player] = Billboard
+-- Проверяем жив ли игрок
+local function IsAlive(plr)
+    local data = roles[plr.Name]
+    return data and not data.Killed and not data.Dead
 end
 
-local function removeESP(player)
-    if ESP[player] then
-        ESP[player]:Destroy()
-        ESP[player] = nil
+-- Создаём ник с цветом в зависимости от роли
+local function CreateOrUpdateESP(player)
+    if player == LocalPlayer then return end
+    if not player.Character then return end
+    local head = player.Character:FindFirstChild("Head")
+    if not head then return end
+
+    -- Highlight
+    local highlight = player.Character:FindFirstChild("Pulse_Highlight")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "Pulse_Highlight"
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillTransparency = 0.75
+        highlight.OutlineTransparency = 1
+        highlight.Parent = player.Character
+    end
+    highlight.Enabled = espEnabled
+
+    -- Цвет по роли
+    if player.Name == murder and IsAlive(player) then
+        highlight.FillColor = Color3.fromRGB(255, 0, 0) -- красный
+    elseif player.Name == sheriff and IsAlive(player) then
+        highlight.FillColor = Color3.fromRGB(0, 0, 255) -- синий
+    elseif player.Name == hero and IsAlive(player) and not IsAlive(Players:FindFirstChild(sheriff)) then
+        highlight.FillColor = Color3.fromRGB(255, 255, 0) -- желтый
+    else
+        highlight.FillColor = Color3.fromRGB(0, 255, 0) -- зеленый
+    end
+
+    -- BillboardGui с ником
+    local billboard = ESP[player]
+    if not billboard then
+        billboard = Instance.new("BillboardGui")
+        billboard.Name = "PulseESP"
+        billboard.Size = UDim2.new(0, 200, 0, 40)
+        billboard.AlwaysOnTop = true
+        billboard.Adornee = head
+        billboard.Parent = head
+
+        local textLabel = Instance.new("TextLabel", billboard)
+        textLabel.Name = "ESPText"
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.GothamSemibold
+        textLabel.TextStrokeTransparency = 0.5
+        textLabel.TextColor3 = Color3.new(1, 1, 1) -- по умолчанию белый
+        textLabel.Text = player.DisplayName or player.Name
+    end
+
+    billboard.Enabled = espEnabled
+    billboard.Adornee = head
+    local textLabel = billboard:FindFirstChild("ESPText")
+    if textLabel then
+        if player.Name == murder and IsAlive(player) then
+            textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+        elseif player.Name == sheriff and IsAlive(player) then
+            textLabel.TextColor3 = Color3.fromRGB(0, 0, 255)
+        elseif player.Name == hero and IsAlive(player) and not IsAlive(Players:FindFirstChild(sheriff)) then
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        else
+            textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        end
+        textLabel.Text = player.DisplayName or player.Name
     end
 end
 
-local function updateESP()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            if player.Character and player.Character:FindFirstChild("Head") then
-                if not ESP[player] then
-                    createESP(player)
-                else
-                    ESP[player].Adornee = player.Character:FindFirstChild("Head")
-                end
-            else
-                removeESP(player)
-            end
+local function RemoveESP(player)
+    if ESP[player] then
+        if ESP[player].Parent then ESP[player]:Destroy() end
+        ESP[player] = nil
+    end
+    if player.Character then
+        local hl = player.Character:FindFirstChild("Pulse_Highlight")
+        if hl then hl:Destroy() end
+    end
+end
+
+-- Обновляем роли и ESP
+local function UpdateRolesAndESP()
+    local success, data = pcall(function()
+        return ReplicatedStorage:FindFirstChild("GetPlayerData", true):InvokeServer()
+    end)
+    if not success or not data then
+        return
+    end
+
+    roles = data
+
+    murder = nil
+    sheriff = nil
+    hero = nil
+
+    for name, info in pairs(data) do
+        if info.Role == "Murderer" then
+            murder = name
+        elseif info.Role == "Sheriff" then
+            sheriff = name
+        elseif info.Role == "Hero" then
+            hero = name
+        end
+    end
+
+    -- Обновляем всех игроков
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            CreateOrUpdateESP(player)
         end
     end
 end
 
--- Fast loop
+-- Убираем ESP при выходе игрока
+Players.PlayerRemoving:Connect(function(player)
+    RemoveESP(player)
+end)
+
+-- Основной цикл, обновляющий всё каждый кадр
 RunService.RenderStepped:Connect(function()
     if espEnabled then
-        updateESP()
+        UpdateRolesAndESP()
     else
+        -- Отключаем ESP и хайлайты
         for player, billboard in pairs(ESP) do
             if billboard then
                 billboard.Enabled = false
             end
+            if player.Character then
+                local hl = player.Character:FindFirstChild("Pulse_Highlight")
+                if hl then
+                    hl.Enabled = false
+                end
+            end
         end
     end
 end)
 
--- Auto cleanup if someone leaves
-Players.PlayerRemoving:Connect(function(p)
-    removeESP(p)
-end)
-
-print("✅ Pulse MM2 ESP loaded. Press [Z] to open menu.")
+print("✅ Pulse MM2 ESP loaded. Press [Z] to toggle menu.")
